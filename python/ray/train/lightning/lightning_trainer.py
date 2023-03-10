@@ -35,13 +35,13 @@ class LightningConfig:
 
     def __init__(self) -> None:
         """Initialize the configurations with default values."""
-        self.module_class = None
-        self.module_init_config = {}
-        self.trainer_init_config = {}
-        self.trainer_fit_params = {}
-        self.ddp_strategy_config = {}
-        self.model_checkpoint_config = {}
-        self.ray_dataset_iter_config = {}
+        self._module_class = None
+        self._module_init_config = {}
+        self._trainer_init_config = {}
+        self._trainer_fit_params = {}
+        self._ddp_strategy_config = {}
+        self._model_checkpoint_config = {}
+        self._ray_dataset_iter_config = {}
 
     def set_module_class(
         self, module_class: Type[pl.LightningModule]
@@ -59,12 +59,12 @@ class LightningConfig:
             raise ValueError(
                 "'module_class' must be a subclass of 'pl.LightningModule'!"
             )
-        self.module_class = module_class
+        self._module_class = module_class
         return self
 
     def set_module_init_config(self, **kwargs) -> "LightningConfig":
         """Set up the initialization argument list of your lightning module."""
-        self.module_init_config.update(**kwargs)
+        self._module_init_config.update(**kwargs)
         return self
 
     def set_trainer_init_config(self, **kwargs) -> "LightningConfig":
@@ -73,7 +73,7 @@ class LightningConfig:
         For valid arguments to pass, please refer to:
         https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#init.
         """
-        self.trainer_init_config.update(**kwargs)
+        self._trainer_init_config.update(**kwargs)
         return self
 
     def set_trainer_fit_params(self, **kwargs) -> "LightningConfig":
@@ -82,7 +82,7 @@ class LightningConfig:
         For valid arguments to pass, please refer to:
         https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#fit.
         """
-        self.trainer_fit_params.update(**kwargs)
+        self._trainer_fit_params.update(**kwargs)
         return self
 
     def set_ddp_strategy_config(self, **kwargs) -> "LightningConfig":
@@ -91,7 +91,7 @@ class LightningConfig:
         For valid arguments to pass, please refer to:
         https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.strategies.DDPStrategy.html
         """
-        self.ddp_strategy_config.update(**kwargs)
+        self._ddp_strategy_config.update(**kwargs)
         return self
 
     def set_model_checkpoint_config(self, **kwargs) -> "LightningConfig":
@@ -102,8 +102,11 @@ class LightningConfig:
         For valid arguments to pass, please refer to:
         https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.callbacks.ModelCheckpoint.html
         """
-        self.model_checkpoint_config.update(**kwargs)
+        self._model_checkpoint_config.update(**kwargs)
         return self
+
+    def to_dict(self):
+        return self.__dict__
 
 
 @PublicAPI(stability="alpha")
@@ -240,9 +243,13 @@ class LightningTrainer(TorchTrainer):
         resume_from_checkpoint: A checkpoint to resume training from.
     """
 
+    _fields_for_tuner_param_space = TorchTrainer._fields_for_tuner_param_space + [
+        "lightning_config"
+    ]
+
     def __init__(
         self,
-        lightning_config: LightningConfig,
+        lightning_config: Dict[str, Any],
         *,
         torch_config: Optional[TorchConfig] = None,
         scaling_config: Optional[ScalingConfig] = None,
@@ -262,7 +269,7 @@ class LightningTrainer(TorchTrainer):
             run_config = RunConfig()
 
         run_config.checkpoint_config = self._create_air_checkpoint_config(
-            lightning_config.model_checkpoint_config
+            lightning_config["_model_checkpoint_config"]
         )
 
         super(LightningTrainer, self).__init__(
@@ -310,9 +317,8 @@ class LightningTrainer(TorchTrainer):
 def _lightning_train_loop_per_worker(config):
     """Per-worker training loop for a Lightning Trainer."""
     ptl_config = config["lightning_config"]
-    dataset_iter_config = config["dataset_iter_config"]
 
-    trainer_fit_params = ptl_config.trainer_fit_params
+    trainer_fit_params = ptl_config["_trainer_fit_params"]
 
     # Prepare data
     datamodule = trainer_fit_params.get("datamodule", None)
@@ -328,6 +334,7 @@ def _lightning_train_loop_per_worker(config):
                 "'LightningConfig.trainer_fit_params' will be ignored!"
             )
 
+        dataset_iter_config = config["dataset_iter_config"]
         datamodule = RayDataModule(
             dataset_iter_config=dataset_iter_config,
             train_dataset=train_ray_dataset,
@@ -335,10 +342,10 @@ def _lightning_train_loop_per_worker(config):
         )
 
     # Prepare Lightning Module
-    lightning_module = ptl_config.module_class(**ptl_config.module_init_config)
+    lightning_module = ptl_config["_module_class"](**ptl_config["_module_init_config"])
 
     # Prepare Lightning Trainer
-    trainer_config = ptl_config.trainer_init_config
+    trainer_config = ptl_config["_trainer_init_config"]
     trainer_config["enable_progress_bar"] = False
 
     # Setup trainer's parallel devices
@@ -361,7 +368,7 @@ def _lightning_train_loop_per_worker(config):
             "be ignored. LightningTrainer will create a RayDDPStrategy object based "
             "on `LightningConfig.ddp_strategy_config`."
         )
-    trainer_config["strategy"] = RayDDPStrategy(ptl_config.ddp_strategy_config)
+    trainer_config["strategy"] = RayDDPStrategy(ptl_config["_ddp_strategy_config"])
 
     # Filter out existing ModelCheckpoint Callbacks
     callbacks = []
@@ -377,7 +384,7 @@ def _lightning_train_loop_per_worker(config):
 
     # AIR needs a RayModelCheckpoint for metircs logging anyway.
     trainer_config["enable_checkpointing"] = True
-    callbacks.append(RayModelCheckpoint(**ptl_config.model_checkpoint_config))
+    callbacks.append(RayModelCheckpoint(**ptl_config["_model_checkpoint_config"]))
 
     trainer_config["callbacks"] = callbacks
 
