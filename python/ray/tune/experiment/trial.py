@@ -816,6 +816,7 @@ class Trial:
         )
 
     def update_last_result(self, result):
+        
         if self.experiment_tag:
             result.update(experiment_tag=self.experiment_tag)
 
@@ -827,6 +828,8 @@ class Trial:
         for remove_metric in DEBUG_METRICS:
             metric_result.pop(remove_metric, None)
 
+
+        print("update_last_result", flatten_dict(metric_result))
         for metric, value in flatten_dict(metric_result).items():
             if isinstance(value, Number):
                 if metric not in self.metric_analysis:
@@ -863,6 +866,7 @@ class Trial:
                         self.metric_analysis[metric][key] = sum(
                             self.metric_n_steps[metric][str(n)]
                         ) / len(self.metric_n_steps[metric][str(n)])
+        print("Metric analysis:", self.metric_analysis)
         self.invalidate_json_state()
 
     def get_trainable_cls(self):

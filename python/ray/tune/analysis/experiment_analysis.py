@@ -594,6 +594,7 @@ class ExperimentAnalysis:
         best_metric_score = None
 
         for trial in self.trials:
+            print(trial, trial.metric_analysis)
             if metric not in trial.metric_analysis:
                 continue
 
@@ -602,7 +603,9 @@ class ExperimentAnalysis:
             else:
                 metric_score = trial.metric_analysis[metric][mode]
 
+            print("metric score: ", metric_score)
             if filter_nan_and_inf and is_nan_or_inf(metric_score):
+                print("pass filter_nan_and_inf")
                 continue
 
             if best_metric_score is None:

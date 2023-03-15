@@ -82,6 +82,7 @@ class CSVLoggerCallback(LoggerCallback):
         self._trial_continue: Dict["Trial", bool] = {}
         self._trial_files: Dict["Trial", TextIO] = {}
         self._trial_csv: Dict["Trial", csv.DictWriter] = {}
+        self.local_files = {}
 
     def _setup_trial(self, trial: "Trial"):
         if trial in self._trial_files:
@@ -90,6 +91,7 @@ class CSVLoggerCallback(LoggerCallback):
         # Make sure logdir exists
         trial.init_logdir()
         local_file = os.path.join(trial.logdir, EXPR_PROGRESS_FILE)
+        self.local_files[trial] = local_file
         self._trial_continue[trial] = (
             os.path.exists(local_file) and os.path.getsize(local_file) > 0
         )
@@ -105,18 +107,26 @@ class CSVLoggerCallback(LoggerCallback):
         result = flatten_dict(tmp, delimiter="/")
 
         if not self._trial_csv[trial]:
+            print("AAAAAA")
             self._trial_csv[trial] = csv.DictWriter(
                 self._trial_files[trial], result.keys()
             )
             if not self._trial_continue[trial]:
+                print("BBBBB")
                 self._trial_csv[trial].writeheader()
 
+        print("before writerow:", open(self.local_files[trial], "r").read())
         self._trial_csv[trial].writerow(
             {k: v for k, v in result.items() if k in self._trial_csv[trial].fieldnames}
         )
+        print("after writerow:", open(self.local_files[trial], "r").read())
         self._trial_files[trial].flush()
+        print("after flush:", open(self.local_files[trial], "r").read())
 
     def log_trial_end(self, trial: "Trial", failed: bool = False):
+        print(
+            "LOG End"
+        )
         if trial not in self._trial_files:
             return
 

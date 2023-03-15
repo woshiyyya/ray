@@ -805,6 +805,7 @@ class TrialRunner:
                     break
 
     def _process_trial_result(self, trial, result):
+        print("_process_trial_result", result)
         result.update(trial_id=trial.trial_id)
         is_duplicate = RESULT_DUPLICATE in result
         force_checkpoint = result.get(SHOULD_CHECKPOINT, False)
