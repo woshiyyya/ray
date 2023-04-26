@@ -6,9 +6,11 @@ import pytorch_lightning as pl
 from packaging.version import Version
 
 from typing import Any, Dict, Optional
+
+import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.plugins.environments import LightningEnvironment
+from pytorch_lightning.strategies import DDPStrategy
 
 _LIGHTNING_GREATER_EQUAL_2_0 = Version(pl.__version__) >= Version("2.0.0")
 _TORCH_GREATER_EQUAL_1_12 = Version(torch.__version__) >= Version("1.12.0")
@@ -98,6 +100,21 @@ class RayFSDPStrategy(FSDPStrategy):
                 return _strip_prefix_from_state_dict(state_dict, prefix="_forward_module.")
         else:
             return super().lightning_module_state_dict()
+
+
+class RayFSDPStrategy(FSDPStrategy):
+    """Subclass of FSDPStrategy to ensure compatibility with Ray orchestration."""
+
+    @property
+    def root_device(self) -> torch.device:
+        return get_worker_root_device()
+
+    @property
+    def distributed_sampler_kwargs(self) -> Dict[str, Any]:
+        return dict(
+            num_replicas=self.world_size,
+            rank=self.global_rank,
+        )
 
 
 class RayEnvironment(LightningEnvironment):
