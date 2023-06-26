@@ -190,7 +190,7 @@ class LightningConfigBuilder:
         """
         self._model_checkpoint_config.update(**kwargs)
         return self
-    
+
     def logger(self, cls, **kwargs) -> "LightningConfigBuilder":
         """Set up the configurations of a PyTorch Lightning Logger.
 
@@ -200,14 +200,13 @@ class LightningConfigBuilder:
         is specified, it creates a DDPStrategy by default.
 
         Args:
-            cls: A subclass of ``pytorch_lightning.loggers.Logger``, such as 
+            cls: A subclass of ``pytorch_lightning.loggers.Logger``, such as
                 ``WandbLogger``, ``MLFlowLogger``, or any custom logger class.
             kwargs: The initialization arguments for the logger.
         """
         self._logger_cls = cls
         self._logger_init_config.update(kwargs)
         return self
-
 
     def build(self) -> Dict["str", Any]:
         """Build and return a config dictionary to pass into LightningTrainer."""
