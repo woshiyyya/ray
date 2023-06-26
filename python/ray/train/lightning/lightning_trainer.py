@@ -83,6 +83,8 @@ class LightningConfigBuilder:
         self._trainer_fit_params = {}
         self._strategy_config = {}
         self._model_checkpoint_config = {}
+        self._logger_cls = None
+        self._logger_init_config = {}
 
     def module(
         self, cls: Optional[Type[pl.LightningModule]] = None, **kwargs
@@ -188,6 +190,24 @@ class LightningConfigBuilder:
         """
         self._model_checkpoint_config.update(**kwargs)
         return self
+    
+    def logger(self, cls, **kwargs) -> "LightningConfigBuilder":
+        """Set up the configurations of a PyTorch Lightning Logger.
+
+        Note that you don't have to specify the `strategy` argument here since the
+        ``LightningTrainer`` creates a PyTorch Lightning Strategy object with the
+        configurations specified in the `.strategy()` method. If no configuration
+        is specified, it creates a DDPStrategy by default.
+
+        Args:
+            cls: A subclass of ``pytorch_lightning.loggers.Logger``, such as 
+                ``WandbLogger``, ``MLFlowLogger``, or any custom logger class.
+            kwargs: The initialization arguments for the logger.
+        """
+        self._logger_cls = cls
+        self._logger_init_config.update(kwargs)
+        return self
+
 
     def build(self) -> Dict["str", Any]:
         """Build and return a config dictionary to pass into LightningTrainer."""
@@ -477,6 +497,8 @@ def _lightning_train_loop_per_worker(config):
     strategy_config = ptl_config["_strategy_config"]
     strategy_name = strategy_config.pop("_strategy_name", "ddp")
     model_checkpoint_config = ptl_config["_model_checkpoint_config"]
+    logger_class = ptl_config["_logger_class"]
+    logger_init_config = ptl_config["_logger_init_config"]
 
     # Prepare data
     datamodule = trainer_fit_params.get("datamodule", None)
@@ -543,6 +565,9 @@ def _lightning_train_loop_per_worker(config):
     trainer_config["callbacks"] = trainer_config.get("callbacks", []) + [
         RayModelCheckpoint(**model_checkpoint_config)
     ]
+
+    # Construct a Logger
+    trainer_config["logger"] = logger_class(**logger_init_config)
 
     trainer = pl.Trainer(**trainer_config)
 
